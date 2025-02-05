@@ -1,0 +1,7 @@
+---
+- name: Provision OCP Self-Managed Cluster on AWS via IPI
+  gather_facts: false
+  hosts: localhost
+  tasks:
+    - include_role:
+        name: admin_provision_cluster

@@ -1,0 +1,10 @@
+---
+- name: Perform Cluster Day 2 Configuration
+  gather_facts: false
+  hosts: localhost
+  tasks:
+    - set_fact:
+        cluster_address: "{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}"
+
+    - include_role:
+        name: install_openshift_gitops

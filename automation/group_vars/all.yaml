@@ -1,0 +1,6 @@
+---
+bin_dir: /usr/local/bin
+working_dir: ~/tmp
+k8s_port: 6443
+state: present
+...

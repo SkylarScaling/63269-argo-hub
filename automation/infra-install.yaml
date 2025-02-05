@@ -1,0 +1,17 @@
+---
+- name: Install OCP Infrastructure Components
+  hosts: localhost
+  gather_facts: false
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ aws.aws_access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ aws.aws_secret_access_key }}"
+    AWS_REGION: "{{ aws.aws_region }}"
+  tasks:
+    - debug:
+        msg: Performing IaC Automation
+
+- name: Provision Cluster
+  ansible.builtin.import_playbook: provision-cluster.yaml
+
+- name: Perform Day 2 Configuration
+  ansible.builtin.import_playbook: day2-config.yaml
