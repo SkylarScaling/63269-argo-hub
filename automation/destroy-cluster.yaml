@@ -1,0 +1,7 @@
+---
+- name: Destroy OCP Self-Managed Cluster on AWS
+  gather_facts: false
+  hosts: localhost
+  tasks:
+    - include_role:
+        name: admin_destroy_cluster

@@ -3,7 +3,27 @@
   gather_facts: false
   hosts: localhost
   tasks:
+#    - name: Set kubeconfig fact
+#      set_fact:
+#        kubeconfig: "{{ working_dir }}/install/{{ cluster_name }}/auth/kubeconfig"
+
     - set_fact:
+        k8s_admin_port: "{{ k8s_port }}"
+      when: k8s_admin_port is undefined
+
+    - set_fact:
+        insecure: "{{ '--insecure-skip-tls-verify' if k8s_admin_port == 6443 else '' }}"
+
+    - name: Wait for cluster to start processing auth requests
+      shell: "oc login --kubeconfig {{ kubeconfig }} https://api.{{ cluster_address }}:{{ k8s_admin_port }} {{ insecure }}"
+      retries: 20
+      delay: 30
+      register: result
+      until: result.rc == 0
+
+    - include_role:
+        name: create_default_cluster_admin
+      vars:
         cluster_address: "{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}"
 
     - include_role:

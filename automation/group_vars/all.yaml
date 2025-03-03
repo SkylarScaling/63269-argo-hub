@@ -1,6 +1,6 @@
 ---
 bin_dir: /usr/local/bin
-working_dir: ~/tmp
+working_dir: /home/sscaling/tmp
 k8s_port: 6443
 state: present
 ...

@@ -1,0 +1,6 @@
+time="2025-02-28T11:16:12-07:00" level=debug msg="OpenShift Installer 4.17.12"
+time="2025-02-28T11:16:12-07:00" level=debug msg="Built from commit baa59e5213e017d66a818c975f6093b1db697dda"
+time="2025-02-28T11:16:12-07:00" level=fatal msg="failed while preparing to destroy cluster: open ~/tmp/install/usaa-cluster/metadata.json: no such file or directory"
+time="2025-02-28T11:17:58-07:00" level=debug msg="OpenShift Installer 4.17.12"
+time="2025-02-28T11:17:58-07:00" level=debug msg="Built from commit baa59e5213e017d66a818c975f6093b1db697dda"
+time="2025-02-28T11:17:58-07:00" level=fatal msg="failed while preparing to destroy cluster: open ~/tmp/install/usaa-cluster/metadata.json: no such file or directory"

@@ -1,0 +1,8 @@
+---
+# Call ansible-for-openshift playbooks
+
+- include_role:
+    name: "{{ repos_path }}/ansible-for-openshift/playbooks/ocp/roles/aws_destroy_ocp_ipi"
+  vars:
+    cluster_name: "{{ ocp_cluster.name }}"
+...

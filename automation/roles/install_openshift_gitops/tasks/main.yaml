@@ -41,3 +41,13 @@
         name: openshift-gitops-operator
         source: redhat-operators
         sourceNamespace: openshift-marketplace
+
+- name: Wait for ArgoCD instance to become available
+  kubernetes.core.k8s_info:
+    host: "https://api.{{ cluster_address }}:{{ k8s_port }}"
+    kind: ArgoCD
+    name: openshift-gitops
+    wait: true
+    wait_condition:
+      type: Available
+    wait_sleep: 3
