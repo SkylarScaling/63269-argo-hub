@@ -42,6 +42,19 @@
         source: redhat-operators
         sourceNamespace: openshift-marketplace
 
+- name: Wait for ArgoCD cluster Deployment to become available
+  kubernetes.core.k8s_info:
+    host: "https://api.{{ cluster_address }}:{{ k8s_port }}"
+    validate_certs: no
+    kind: Deployment
+    name: cluster
+    namespace: openshift-gitops
+    wait: true
+    wait_condition:
+      reason: MinimumReplicasAvailable
+      type: Available
+    wait_sleep: 1
+
 - name: Wait for ArgoCD instance to become available
   kubernetes.core.k8s_info:
     host: "https://api.{{ cluster_address }}:{{ k8s_port }}"
@@ -51,3 +64,36 @@
     wait_condition:
       type: Available
     wait_sleep: 3
+
+- name: Create dev Namespace
+  kubernetes.core.k8s:
+    host: "https://api.{{ cluster_address }}:{{ k8s_port }}"
+    state: "{{ state }}"
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: dev
+
+- name: Update ArgoCD to enable AppSets
+  kubernetes.core.k8s:
+    host: "https://api.{{ cluster_address }}:{{ k8s_port }}"
+    state: patched
+    kind: ArgoCD
+    api_version: argoproj.io/v1beta1
+    name: openshift-gitops
+    namespace: openshift-gitops
+    definition:
+      spec:
+        applicationSet:
+          sourceNamespaces:
+            - dev
+        controller:
+          sharding:
+            enabled: true
+            replicas: 3
+          env:
+            - name: ARGOCD_CONTROLLER_SHARDING_ALGORITHM
+              value: round-robin
+        ha:
+          enabled: true

@@ -3,19 +3,21 @@
   gather_facts: false
   hosts: localhost
   tasks:
-#    - name: Set kubeconfig fact
-#      set_fact:
-#        kubeconfig: "{{ working_dir }}/install/{{ cluster_name }}/auth/kubeconfig"
+    - name: Set kubeconfig fact
+      set_fact:
+        kubefile: "{{ working_dir }}/install/{{ ocp_cluster.name }}/auth/kubeadmin-password"
 
-    - set_fact:
-        k8s_admin_port: "{{ k8s_port }}"
-      when: k8s_admin_port is undefined
-
-    - set_fact:
-        insecure: "{{ '--insecure-skip-tls-verify' if k8s_admin_port == 6443 else '' }}"
-
-    - name: Wait for cluster to start processing auth requests
-      shell: "oc login --kubeconfig {{ kubeconfig }} https://api.{{ cluster_address }}:{{ k8s_admin_port }} {{ insecure }}"
+    - name: Check if cluster auth is working
+      ansible.builtin.command:
+        argv:
+          - oc
+          - login
+          - -u
+          - kubeadmin
+          - -p
+          - "{{ lookup('ansible.builtin.file', kubefile) }}"
+          - "https://api.{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}:{{ k8s_port }}"
+          - --insecure-skip-tls-verify
       retries: 20
       delay: 30
       register: result
