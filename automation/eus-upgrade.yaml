@@ -24,10 +24,62 @@
       debug:
         msg: "OpenShift Cluster Version: {{ cluster_version_info.resources[0].status.desired.version }}"
       when: cluster_version_info.resources | length > 0
-#    2. Pause non-master MachineConfigPools
+
+    - block:
+        - name: Exit if not 4.15
+          debug:
+            msg: "OpenShift version is not 4.15. Exiting playbook."
+          failed_when: true
+      when: not (cluster_version_info.resources[0].status.desired.version is version_compare('4.15', '>=', strict=True) and cluster_version_info.resources[0].status.desired.version is version_compare('4.16', '<', strict=True))
+
+    #    2. Pause non-master MachineConfigPools
+    - name: Get non-master MachineConfigPools
+      kubernetes.core.k8s_info:
+        kind: MachineConfigPool
+        api_version: machineconfiguration.openshift.io/v1
+      register: mcps_info
+
+    - name: Pause non-master MachineConfigPools
+      kubernetes.core.k8s:
+        api_version: machineconfiguration.openshift.io/v1
+        kind: MachineConfigPool
+        state: patched
+        merge_type: merge
+        name: "{{ item.metadata.name }}"
+        definition:
+          spec:
+            paused: true
+      loop: "{{ mcps_info.resources | rejectattr('metadata.name', 'in', ['master']) | list }}"
+      when: mcps_info.resources is defined
+
+    - name: Debug paused MachineConfigPools
+      debug:
+        msg: "Paused MachineConfigPool: {{ item.metadata.name }}"
+      loop: "{{ mcps_info.resources | rejectattr('metadata.name', 'in', ['master']) | list }}"
+      when: mcps_info.resources is defined
 #    3. Set upgrade channel
+    - name: Set the update channel to 4.16
+      kubernetes.core.k8s:
+        kind: ClusterVersion
+        merge_type: merge
+        api_version: config.openshift.io/v1
+        name: version
+        definition:
+          spec:
+            channel: "stable-4.16"
 #    4. Apply checksum for first minor version
 #    5. Acknowledge deprecated APIs
+    - name: Acknowledge API deprecations for 4.16
+      kubernetes.core.k8s:
+        kind: ConfigMap
+        merge_type: merge
+        api_version: v1
+        name: admin-acks
+        namespace: openshift-config
+        definition:
+          data:
+            ack-4.15-kube-1.29-api-removals-in-4.16: 'true'
+  # oc -n openshift-config patch cm admin-acks --patch '{"data":{"ack-4.15-kube-1.29-api-removals-in-4.16":"true"}}' --type=merge
 #    6. Upgrade control plane to first minor version
 
 #  Post-Validation
