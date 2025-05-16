@@ -1,0 +1,63 @@
+---
+- name: Perform OCP EUS Cluster Upgrade
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - debug:
+        msg: Starting EUS Cluster Upgrade Automation...
+
+    - include_role:
+        name: admin_oc_login
+      vars:
+        cluster_address: "{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}"
+
+#  Upgrade Master MCP to First Minor Version
+#    1. Verify cluster version
+    - name: Get ClusterVersion object
+      kubernetes.core.k8s_info:
+        kind: ClusterVersion
+        api_version: config.openshift.io/v1
+        name: version #Gets the cluster version named "version"
+      register: cluster_version_info
+
+    - name: Debug Cluster Version
+      debug:
+        msg: "OpenShift Cluster Version: {{ cluster_version_info.resources[0].status.desired.version }}"
+      when: cluster_version_info.resources | length > 0
+#    2. Pause non-master MachineConfigPools
+#    3. Set upgrade channel
+#    4. Apply checksum for first minor version
+#    5. Acknowledge deprecated APIs
+#    6. Upgrade control plane to first minor version
+
+#  Post-Validation
+#    1. Verify master MCP update is complete
+#    2. Verify non-master MCPs are paused
+#    3. Verify Conjur Status
+#    4. Verify cluster version matches the first minor version
+
+#  Upgrade Master MCP to Second Minor Version
+#    1. Verify cluster version
+#    2. Verify non-master MCPs are paused state
+#    3. Set upgrade channel
+#    4. Apply checksum for second minor version
+#    5. Acknowledge deprecated APIs
+#    6. Upgrade control plane to second minor version
+
+#  Post-Validation
+#    1. Verify master MCP update is complete
+#    2. Verify non-master MCPs are paused
+#    3. Verify Conjur Status
+#    4. Verify cluster version matches the second minor version
+
+#  Upgrade Non-Master MCP to Second Minor Version
+#    1. Verify cluster version
+#    2. Verify non-master MCPs are paused state
+#    3. Remove all misconfigured PDBs with 0 allowed disruptions
+#    4. Unpause non-master MCPs
+
+#  Post-Validation
+#    1. Verify cluster version
+#    2. Verify all MCPs are unpaused and healthy
+#    3. Verify all cluster operators are healthy
+#    4. Verify all nodes are healthy

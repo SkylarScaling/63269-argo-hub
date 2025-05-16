@@ -12,5 +12,5 @@
     insecure: "{{ '--insecure-skip-tls-verify' if k8s_admin_port == 6443 else '' }}"
 
 - name: "OpenShift CLI login"
-  shell: "oc login --kubeconfig {{ kubeconfig }} https://api.{{ cluster_address }}:{{ k8s_admin_port }} {{ insecure }}"
+  shell: "oc login -u {{ admin_user }} -p {{ admin_password }} https://api.{{ cluster_address }}:{{ k8s_admin_port }} {{ insecure }}"
   when: result.rc == 1
