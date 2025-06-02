@@ -1,0 +1,85 @@
+---
+- name: Perform OCP EUS Cluster Upgrade from 4.15 to 4.16
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - debug:
+        msg: Starting EUS 4.16 Cluster Upgrade Automation...
+
+    - include_role:
+        name: admin_oc_login
+      vars:
+        cluster_address: "{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}"
+
+    #  Upgrade Master MCP to Second Minor Version
+    #    1. Verify cluster version
+    #    2. Verify non-master MCPs are paused state
+    #    3. Set upgrade channel
+    #    4. Apply checksum for second minor version
+    #    5. Acknowledge deprecated APIs
+    - name: Acknowledge API deprecations for 4.16
+      kubernetes.core.k8s:
+        kind: ConfigMap
+        merge_type: merge
+        api_version: v1
+        name: admin-acks
+        namespace: openshift-config
+        definition:
+          data:
+            ack-4.15-kube-1.29-api-removals-in-4.16: 'true'
+    #    6. Upgrade control plane to second minor version
+
+    - name: Perform OpenShift cluster upgrade to latest version
+      ansible.builtin.command: oc adm upgrade --to-latest
+      # This command initiates the OpenShift cluster upgrade to the latest available version
+      # in the configured update channel.
+      # It's crucial to ensure the 'oc' CLI is installed and configured to access the cluster.
+      # The upgrade process can take a significant amount of time and involves multiple stages
+      # handled by the Cluster Version Operator and Machine Config Operator.
+      # This task should be run after pausing MachineHealthCheck resources and before unpausing them.
+      changed_when: true # Always report a change, as the upgrade is an ongoing process
+      retries: 3 # Retry the command a few times in case of transient issues
+      delay: 10 # Wait 10 seconds between retries
+      tags: perform_upgrade # Tag for selective execution
+
+    # TODO ISSUE Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=PrometheusRule "openshift-kube-apiserver/kube-apiserver-recording-rules"
+    # This will eventually resolve itselt, and then the update will continue.
+    # Need to watch for cluster upgrade to begin using a different mechanism than the task below.
+
+    #  Post-Validation
+    #    1. Verify master MCP update is complete
+    - name: Pause for 30 seconds for update to begin progressing...
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Wait for OpenShift cluster upgrade to complete
+      ansible.builtin.shell: |
+        oc get clusterversion version -o jsonpath='{.status.conditions[?(@.type=="Progressing")].status}'
+      register: upgrade_progress_status
+      until: upgrade_progress_status.stdout == "False"
+      retries: 120 # Check every 30 seconds for up to an hour (120 * 30s = 3600s = 1 hour)
+      delay: 30 # Wait 30 seconds between checks
+      # This task continuously checks the 'Progressing' condition of the clusterversion object.
+      # The upgrade is considered complete when the 'Progressing' status changes to "False".
+      # This does not necessarily mean the cluster is fully healthy, only that the update process has finished.
+      # Further health checks (e.g., 'oc get co') should be performed after this step.
+      tags: wait_for_upgrade
+
+    #    2. Verify non-master MCPs are paused
+    #    3. Verify Conjur Status
+    #    4. Verify cluster version matches the second minor version
+
+    #  Upgrade Non-Master MCP to Second Minor Version
+    #    1. Verify cluster version
+    #    2. Verify non-master MCPs are paused state
+    #    3. Remove all misconfigured PDBs with 0 allowed disruptions
+    #    4. Unpause non-master MCPs
+
+    #  Post-Validation
+    #    1. Verify cluster version
+    #    2. Verify all MCPs are unpaused and healthy
+    #    3. Verify all cluster operators are healthy
+    #    4. Verify all nodes are healthy
+
+    - include_role:
+        name: admin_oc_logout
