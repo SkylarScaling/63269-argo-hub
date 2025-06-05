@@ -1,0 +1,26 @@
+---
+- name: Apply KubeletConfig to cluster
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - include_role:
+        name: admin_oc_login
+      vars:
+        cluster_address: "{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}"
+
+    - name: Apply KubeletConfig
+      k8s:
+        state: present
+        definition:
+          apiVersion: machineconfiguration.openshift.io/v1
+          kind: KubeletConfig
+          metadata:
+            name: worker-kubeletconfig
+          spec:
+            machineConfigPoolSelector:
+              matchLabels:
+                pools.operator.machineconfiguration.openshift.io/worker: ""
+            kubeletConfig:
+              podPidsLimit: 65536
+              imageGCHighThresholdPercent: 75
+              imageGCLowThresholdPercent: 65

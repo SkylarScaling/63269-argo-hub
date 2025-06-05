@@ -6,8 +6,8 @@
     - debug:
         msg: Beginning cluster upgrade process...
 
-- name: Provision Cluster
+- name: Perform 4.15 Upgrade
   ansible.builtin.import_playbook: eus-upgrade-414-to-415.yaml
 
-- name: Perform Day 2 Configuration
+- name: Perform 4.16 Upgrade
   ansible.builtin.import_playbook: eus-upgrade-415-to-416.yaml
