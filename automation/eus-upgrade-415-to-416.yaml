@@ -49,14 +49,22 @@
       delay: 10 # Wait 10 seconds between retries
       tags: perform_upgrade # Tag for selective execution
 
-    # TODO ISSUE Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=PrometheusRule "openshift-kube-apiserver/kube-apiserver-recording-rules"
-    # This will eventually resolve itself, and then the update will continue.
-
     #  Post-Validation
     #    1. Verify master MCP update is complete
     - name: Pause for 60 seconds for update command to process
       ansible.builtin.pause:
         seconds: 60
+
+    # Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=PrometheusRule "openshift-kube-apiserver/kube-apiserver-recording-rules"
+    # This will eventually resolve itself, and then the update will continue.
+    - name: Wait for Release to be Accepted
+      ansible.builtin.shell: |
+        oc get clusterversion version -o jsonpath='{.status.conditions[?(@.type=="ReleaseAccepted")].status}'
+      register: upgrade_progress_status
+      until: upgrade_progress_status.stdout == "True"
+      retries: 120 # Check every 30 seconds for up to one hour
+      delay: 30 # Wait 30 seconds between checks
+      tags: wait_for_upgrade
 
     - name: Wait for OpenShift cluster upgrade to complete
       ansible.builtin.shell: |
