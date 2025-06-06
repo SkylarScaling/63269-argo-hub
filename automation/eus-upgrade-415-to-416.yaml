@@ -1,0 +1,117 @@
+---
+- name: Perform OCP EUS Cluster Upgrade from 4.15 to 4.16
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - debug:
+        msg: Starting EUS 4.16 Cluster Upgrade Automation...
+
+    - include_role:
+        name: admin_oc_login
+      vars:
+        cluster_address: "{{ ocp_cluster.name }}.{{ ocp_cluster.base_domain }}"
+
+    #  Upgrade Master MCP to Second Minor Version
+    #    1. Verify cluster version
+    - block:
+        - name: Exit if not 4.15
+          debug:
+            msg: "OpenShift version is not 4.15. Exiting playbook."
+          failed_when: true
+      when: not (cluster_version_info.resources[0].status.desired.version is version_compare('4.15', '>=', strict=True) and cluster_version_info.resources[0].status.desired.version is version_compare('4.16', '<', strict=True))
+
+    #    2. Verify non-master MCPs are paused state
+    #    3. Set upgrade channel
+    #    4. Apply checksum for second minor version
+    #    5. Acknowledge deprecated APIs
+    - name: Acknowledge API deprecations for 4.16
+      kubernetes.core.k8s:
+        kind: ConfigMap
+        merge_type: merge
+        api_version: v1
+        name: admin-acks
+        namespace: openshift-config
+        definition:
+          data:
+            ack-4.15-kube-1.29-api-removals-in-4.16: 'true'
+    #    6. Upgrade control plane to second minor version
+
+    - name: Perform OpenShift cluster upgrade to latest version
+      ansible.builtin.command: oc adm upgrade --to-latest
+      # This command initiates the OpenShift cluster upgrade to the latest available version
+      # in the configured update channel.
+      # It's crucial to ensure the 'oc' CLI is installed and configured to access the cluster.
+      # The upgrade process can take a significant amount of time and involves multiple stages
+      # handled by the Cluster Version Operator and Machine Config Operator.
+      # This task should be run after pausing MachineHealthCheck resources and before unpausing them.
+      changed_when: true # Always report a change, as the upgrade is an ongoing process
+      retries: 3 # Retry the command a few times in case of transient issues
+      delay: 10 # Wait 10 seconds between retries
+      tags: perform_upgrade # Tag for selective execution
+
+    #  Post-Validation
+    #    1. Verify master MCP update is complete
+    - name: Pause for 60 seconds for update command to process
+      ansible.builtin.pause:
+        seconds: 60
+
+    # Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=PrometheusRule "openshift-kube-apiserver/kube-apiserver-recording-rules"
+    # This will eventually resolve itself, and then the update will continue.
+    - name: Wait for Release to be Accepted
+      ansible.builtin.shell: |
+        oc get clusterversion version -o jsonpath='{.status.conditions[?(@.type=="ReleaseAccepted")].status}'
+      register: upgrade_progress_status
+      until: upgrade_progress_status.stdout == "True"
+      retries: 120 # Check every 30 seconds for up to one hour
+      delay: 30 # Wait 30 seconds between checks
+      tags: wait_for_upgrade
+
+    - name: Wait for OpenShift cluster upgrade to complete
+      ansible.builtin.shell: |
+        oc get clusterversion version -o jsonpath='{.status.conditions[?(@.type=="Progressing")].status}'
+      register: upgrade_progress_status
+      until: upgrade_progress_status.stdout == "False"
+      retries: 240 # Check every 30 seconds for up to two hours
+      delay: 30 # Wait 30 seconds between checks
+      # This task continuously checks the 'Progressing' condition of the clusterversion object.
+      # The upgrade is considered complete when the 'Progressing' status changes to "False".
+      # This does not necessarily mean the cluster is fully healthy, only that the update process has finished.
+      # Further health checks (e.g., 'oc get co') should be performed after this step.
+      tags: wait_for_upgrade
+
+    #    2. Verify non-master MCPs are paused
+    #    3. Verify Conjur Status
+    #    4. Verify cluster version matches the second minor version
+
+    #  Upgrade Non-Master MCP to Second Minor Version
+    #    1. Verify cluster version
+    #    2. Verify non-master MCPs are paused state
+    #    3. Remove all misconfigured PDBs with 0 allowed disruptions
+    #    4. Unpause non-master MCPs
+    - name: Get non-master MachineConfigPools
+      kubernetes.core.k8s_info:
+        kind: MachineConfigPool
+        api_version: machineconfiguration.openshift.io/v1
+      register: mcps_info
+
+    - name: Unpause non-master MachineConfigPools
+      kubernetes.core.k8s:
+        api_version: machineconfiguration.openshift.io/v1
+        kind: MachineConfigPool
+        state: patched
+        merge_type: merge
+        name: "{{ item.metadata.name }}"
+        definition:
+          spec:
+            paused: false
+      loop: "{{ mcps_info.resources | rejectattr('metadata.name', 'in', ['master']) | list }}"
+      when: mcps_info.resources is defined
+
+    #  Post-Validation
+    #    1. Verify cluster version
+    #    2. Verify all MCPs are unpaused and healthy
+    #    3. Verify all cluster operators are healthy
+    #    4. Verify all nodes are healthy
+
+    - include_role:
+        name: admin_oc_logout
